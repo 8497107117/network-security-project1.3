@@ -7,6 +7,7 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 # Construct a TCP socket
 HOST, PORT = "140.113.194.88", 45000
@@ -80,3 +81,25 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
 	    )
 	)
 	print('Initial Vector :\n', IV)
+
+	# Send my encrypted ID to server
+	cipher = Cipher(algorithms.AES(AESKey), modes.CBC(IV), backend=default_backend())
+	encryptor = cipher.encryptor()
+	encryptedID = encryptor.update(b'0216023\0\0\0\0\0\0\0\0\0') + encryptor.finalize()
+	msg_size = len(str(encryptedID))
+	byte_msg_size = struct.pack('i', msg_size)
+	sock.sendall(byte_msg_size)
+	sock.sendall(encryptedID)
+	print('Send my encrypted ID :\n', encryptedID)
+	
+	# Receive Magic Number from server
+	msg_size = struct.unpack('i', sock.recv(4))
+	encryptedMagicNum = sock.recv(int(msg_size[0]))
+	print('Received C4 :\n', encryptedMagicNum)
+	decryptor = cipher.decryptor()
+	print('My Magic Number:\n', decryptor.update(encryptedMagicNum) + decryptor.finalize())
+
+	# bye
+	msg_size = struct.unpack("i", sock.recv(4))
+	received = str(sock.recv(int(msg_size[0])), "utf-8")
+	print(received)
